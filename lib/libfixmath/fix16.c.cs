@@ -112,92 +112,6 @@ namespace libfixmath
 #endif
         }
 
-
-
-/* 8-bit implementation of fix16_mul. Fastest on e.g. Atmel AVR.
- * Uses 8*8->16bit multiplications, and also skips any bytes that
- * are zero.
- */
-#if FIXMATH_OPTIMIZE_8BIT
-public static fix16_t fix16_mul(fix16_t inArg0, fix16_t inArg1)
-{
-	uint32_t _a = (inArg0 >= 0) ? inArg0 : (-inArg0);
-	uint32_t _b = (inArg1 >= 0) ? inArg1 : (-inArg1);
-	
-	uint8_t va[4] = {_a, (_a >> 8), (_a >> 16), (_a >> 24)};
-	uint8_t vb[4] = {_b, (_b >> 8), (_b >> 16), (_b >> 24)};
-	
-	uint32_t low = 0;
-	uint32_t mid = 0;
-	
-	// Result column i depends on va[0..i] and vb[i..0]
-
-	#if !FIXMATH_NO_OVERFLOW
-	// i = 6
-	if (va[3] && vb[3]) return fix16_overflow;
-	#endif
-	
-	// i = 5
-	if (va[2] && vb[3]) mid += (uint16_t) va[2] * vb[3];
-	if (va[3] && vb[2]) mid += (uint16_t) va[3] * vb[2];
-    mid <<= 8;
-	
-	// i = 4
-	if (va[1] && vb[3]) mid += (uint16_t) va[1] * vb[3];
-	if (va[2] && vb[2]) mid += (uint16_t) va[2] * vb[2];
-	if (va[3] && vb[1]) mid += (uint16_t) va[3] * vb[1];
-	
-	#if !FIXMATH_NO_OVERFLOW
-	if (mid & 0xFF000000) return fix16_overflow;
-	#endif
-	mid <<= 8;
-	
-	// i = 3
-	if (va[0] && vb[3]) mid += (uint16_t) va[0] * vb[3];
-	if (va[1] && vb[2]) mid += (uint16_t) va[1] * vb[2];
-	if (va[2] && vb[1]) mid += (uint16_t) va[2] * vb[1];
-	if (va[3] && vb[0]) mid += (uint16_t) va[3] * vb[0];
-	
-	#if !FIXMATH_NO_OVERFLOW
-	if (mid & 0xFF000000) return fix16_overflow;
-	#endif
-	mid <<= 8;
-	
-	// i = 2
-	if (va[0] && vb[2]) mid += (uint16_t) va[0] * vb[2];
-	if (va[1] && vb[1]) mid += (uint16_t) va[1] * vb[1];
-	if (va[2] && vb[0]) mid += (uint16_t) va[2] * vb[0];		
-	
-	// i = 1
-	if (va[0] && vb[1]) low += (uint16_t) va[0] * vb[1];
-	if (va[1] && vb[0]) low += (uint16_t) va[1] * vb[0];
-    low <<= 8;
-	
-	// i = 0
-	if (va[0] && vb[0]) low += (uint16_t) va[0] * vb[0];
-
-#if !FIXMATH_NO_ROUNDING
-    low += 0x8000;
-	#endif
-	mid += (low >> 16);
-	
-	#if !FIXMATH_NO_OVERFLOW
-	if (mid & 0x80000000)
-		return fix16_overflow;
-	#endif
-	
-	fix16_t result = mid;
-	
-	/* Figure out the sign of result */
-	if ((inArg0 >= 0) != (inArg1 >= 0))
-	{
-		result = -result;
-	}
-	
-	return result;
-}
-#endif
-
 #if !FIXMATH_NO_OVERFLOW
 /* Wrapper around fix16_mul to add saturating arithmetic. */
 public static fix16_t fix16_smul(fix16_t inArg0, fix16_t inArg1)
@@ -216,15 +130,6 @@ public static fix16_t fix16_smul(fix16_t inArg0, fix16_t inArg1)
 }
 #endif
 
-        /* 32-bit implementation of fix16_div. Fastest version for e.g. ARM Cortex M3.
-         * Performs 32-bit divisions repeatedly to reduce the remainder. For this to
-         * be efficient, the processor has to have 32-bit hardware division.
-         */
-#if !FIXMATH_OPTIMIZE_8BIT
-#if __GNUC__
-// Count leading zeros, using processor-specific instruction if available.
-//#define clz(x) (__builtin_clzl(x) - (8 * sizeof(long) - 32))
-#else
         public static uint8_t clz(uint32_t x)
         {
 	        uint8_t result = 0;
@@ -233,7 +138,6 @@ public static fix16_t fix16_smul(fix16_t inArg0, fix16_t inArg1)
 	        while (!((x & 0x80000000) != 0)) { result += 1; x <<= 1; }
 	        return result;
         }
-#endif
 
         public static fix16_t fix16_div(fix16_t a, fix16_t b)
         {
@@ -308,90 +212,7 @@ public static fix16_t fix16_smul(fix16_t inArg0, fix16_t inArg1)
 
             return result;
         }
-        #endif
 
-        /* Alternative 32-bit implementation of fix16_div. Fastest on e.g. Atmel AVR.
-         * This does the division manually, and is therefore good for processors that
-         * do not have hardware division.
-         */
-#if FIXMATH_OPTIMIZE_8BIT
-fix16_t fix16_div(fix16_t a, fix16_t b)
-{
-	// This uses the basic binary restoring division algorithm.
-	// It appears to be faster to do the whole division manually than
-	// trying to compose a 64-bit divide out of 32-bit divisions on
-	// platforms without hardware divide.
-	
-	if (b == 0)
-		return fix16_minimum;
-	
-	uint32_t remainder = (a >= 0) ? a : (-a);
-	uint32_t divider = (b >= 0) ? b : (-b);
-
-	uint32_t quotient = 0;
-	uint32_t bit = 0x10000;
-	
-	/* The algorithm requires D >= R */
-	while (divider < remainder)
-	{
-		divider <<= 1;
-		bit <<= 1;
-	}
-	
-#if !FIXMATH_NO_OVERFLOW
-	if (!bit)
-		return fix16_overflow;
-#endif
-	
-	if (divider & 0x80000000)
-	{
-		// Perform one step manually to avoid overflows later.
-		// We know that divider's bottom bit is 0 here.
-		if (remainder >= divider)
-		{
-				quotient |= bit;
-				remainder -= divider;
-		}
-		divider >>= 1;
-		bit >>= 1;
-	}
-	
-	/* Main division loop */
-	while (bit && remainder)
-	{
-		if (remainder >= divider)
-		{
-				quotient |= bit;
-				remainder -= divider;
-		}
-		
-		remainder <<= 1;
-		bit >>= 1;
-	}	 
-			
-#if !FIXMATH_NO_ROUNDING
-	if (remainder >= divider)
-	{
-		quotient++;
-	}
-#endif
-	
-	fix16_t result = quotient;
-	
-	/* Figure out the sign of result */
-	if ((a ^ b) & 0x80000000)
-	{
-#if !FIXMATH_NO_OVERFLOW
-		if (result == fix16_minimum)
-				return fix16_overflow;
-#endif
-		
-		result = -result;
-	}
-	
-	return result;
-}
-#endif
 
 #if !FIXMATH_NO_OVERFLOW
         /* Wrapper around fix16_div to add saturating arithmetic. */
@@ -413,22 +234,10 @@ fix16_t fix16_div(fix16_t a, fix16_t b)
 
 public static fix16_t fix16_mod(fix16_t x, fix16_t y)
 {
-#if FIXMATH_OPTIMIZE_8BIT
-    /* The reason we do this, rather than use a modulo operator
-     * is that if you don't have a hardware divider, this will result
-     * in faster operations when the angles are close to the bounds. 
-     */
-    while (x >= y)
-        x -= y;
-    while (x <= -y)
-        x += y;
-#else
     /* Note that in C90, the sign of result of the modulo operation is
      * undefined. in C99, it's the same as the dividend (aka numerator).
      */
     x %= y;
-#endif
-
     return x;
 }
 
