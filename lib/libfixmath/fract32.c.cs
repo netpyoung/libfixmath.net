@@ -21,7 +21,6 @@ namespace libfixmath
             return (0xFFFFFFFF - inFract);
         }
 
-#if !FIXMATH_NO_64BIT
         public static uint32_t fract32_usmul(uint32_t inVal, fract32_t inFract)
         {
             return (uint32_t)(((uint64_t)inVal * (uint64_t)inFract) >> 32);
@@ -34,5 +33,4 @@ namespace libfixmath
             return (int32_t)fract32_usmul((uint32_t)inVal, inFract);
         }
     }
-#endif
 }

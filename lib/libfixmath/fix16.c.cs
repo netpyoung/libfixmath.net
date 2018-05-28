@@ -73,7 +73,6 @@ namespace libfixmath
          * detection.
          */
 
-#if !FIXMATH_NO_64BIT && !FIXMATH_OPTIMIZE_8BIT
         public static fix16_t fix16_mul(fix16_t inArg0, fix16_t inArg1)
         {
             int64_t product = (int64_t)inArg0 * inArg1;
@@ -112,68 +111,8 @@ namespace libfixmath
             return result;
 #endif
         }
-#endif
 
-/* 32-bit implementation of fix16_mul. Potentially fast on 16-bit processors,
- * and this is a relatively good compromise for compilers that do not support
- * uint64_t. Uses 16*16->32bit multiplications.
- */
-#if FIXMATH_NO_64BIT && !FIXMATH_OPTIMIZE_8BIT
-fix16_t fix16_mul(fix16_t inArg0, fix16_t inArg1)
-{
-	// Each argument is divided to 16-bit parts.
-	//					AB
-	//			*	 CD
-	// -----------
-	//					BD	16 * 16 -> 32 bit products
-	//				 CB
-	//				 AD
-	//				AC
-	//			 |----| 64 bit product
-	int32_t A = (inArg0 >> 16), C = (inArg1 >> 16);
-	uint32_t B = (inArg0 & 0xFFFF), D = (inArg1 & 0xFFFF);
-	
-	int32_t AC = A*C;
-	int32_t AD_CB = A*D + C*B;
-	uint32_t BD = B*D;
-	
-	int32_t product_hi = AC + (AD_CB >> 16);
-	
-	// Handle carry from lower 32 bits to upper part of result.
-	uint32_t ad_cb_temp = AD_CB << 16;
-	uint32_t product_lo = BD + ad_cb_temp;
-	if (product_lo < BD)
-		product_hi++;
-	
-#if FIXMATH_NO_OVERFLOW
-	// The upper 17 bits should all be the same (the sign).
-	if (product_hi >> 31 != product_hi >> 15)
-		return fix16_overflow;
-#endif
-	
-#if FIXMATH_NO_ROUNDING
-	return (product_hi << 16) | (product_lo >> 16);
-#else
-	// Subtracting 0x8000 (= 0.5) and then using signed right shift
-	// achieves proper rounding to result-1, except in the corner
-	// case of negative numbers and lowest word = 0x8000.
-	// To handle that, we also have to subtract 1 for negative numbers.
-	uint32_t product_lo_tmp = product_lo;
-        product_lo -= 0x8000;
-	product_lo -= (uint32_t) product_hi >> 31;
-	if (product_lo > product_lo_tmp)
-		product_hi--;
-	
-	// Discard the lowest 16 bits. Note that this is not exactly the same
-	// as dividing by 0x10000. For example if product = -1, result will
-	// also be -1 and not 0. This is compensated by adding +1 to the result
-	// and compensating this in turn in the rounding above.
-	fix16_t result = (product_hi << 16) | (product_lo >> 16);
-        result += 1;
-	return result;
-#endif
-}
-#endif
+
 
 /* 8-bit implementation of fix16_mul. Fastest on e.g. Atmel AVR.
  * Uses 8*8->16bit multiplications, and also skips any bytes that
@@ -494,7 +433,6 @@ public static fix16_t fix16_mod(fix16_t x, fix16_t y)
 }
 
 
-#if !FIXMATH_NO_64BIT
         public static fix16_t fix16_lerp8(fix16_t inArg0, fix16_t inArg1, uint8_t inFract)
         {
             int64_t tempOut = int64_mul_i32_i32(inArg0, ((1 << 8) - inFract));
@@ -519,6 +457,5 @@ public static fix16_t fix16_mod(fix16_t x, fix16_t y)
             tempOut >>= 32;
             return (fix16_t)tempOut;
         }
-#endif
     }
 }
