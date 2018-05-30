@@ -103,7 +103,7 @@ namespace libfixmath
             }
 
 #if FIXMATH_NO_ROUNDING
-            return product >> 16;
+            return (fix16_t)(product >> 16);
 #else
             fix16_t result = (fix16_t)(product >> 16);
             result += (fix16_t)(product & 0x8000) >> 15;
@@ -217,30 +217,33 @@ public static fix16_t fix16_smul(fix16_t inArg0, fix16_t inArg1)
 #if !FIXMATH_NO_OVERFLOW
         /* Wrapper around fix16_div to add saturating arithmetic. */
         public static fix16_t fix16_sdiv(fix16_t inArg0, fix16_t inArg1)
-{
-    fix16_t result = fix16_div(inArg0, inArg1);
+        {
+            fix16_t result = fix16_div(inArg0, inArg1);
 
-    if (result == fix16_overflow)
-    {
-        if ((inArg0 >= 0) == (inArg1 >= 0))
-            return fix16_maximum;
-        else
-            return fix16_minimum;
-    }
+            if (result == fix16_overflow)
+            {
+                if ((inArg0 >= 0) == (inArg1 >= 0))
+                    return fix16_maximum;
+                else
+                    return fix16_minimum;
+            }
 
-    return result;
-}
+            return result;
+        }
+#else
+        public static fix16_t fix16_sdiv(fix16_t inArg0, fix16_t inArg1)
+        {
+            return fix16_div(inArg0, inArg1);
+        }
 #endif
-
-public static fix16_t fix16_mod(fix16_t x, fix16_t y)
-{
-    /* Note that in C90, the sign of result of the modulo operation is
-     * undefined. in C99, it's the same as the dividend (aka numerator).
-     */
-    x %= y;
-    return x;
-}
-
+        public static fix16_t fix16_mod(fix16_t x, fix16_t y)
+        {
+            /* Note that in C90, the sign of result of the modulo operation is
+             * undefined. in C99, it's the same as the dividend (aka numerator).
+             */
+            x %= y;
+            return x;
+        }
 
         public static fix16_t fix16_lerp8(fix16_t inArg0, fix16_t inArg1, uint8_t inFract)
         {

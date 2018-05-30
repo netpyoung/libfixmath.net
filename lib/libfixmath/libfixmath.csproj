@@ -4,4 +4,8 @@
     <TargetFramework>net46</TargetFramework>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>TRACE;DEBUG;FIXMATH_NO_OVERFLOW;FIXMATH_NO_ROUNDING;FIXMATH_FAST_SIN;FIXMATH_SIN_LUT;FIXMATH_NO_CACHE</DefineConstants>
+  </PropertyGroup>
+
 </Project>

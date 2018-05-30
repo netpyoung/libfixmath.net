@@ -1,4 +1,6 @@
-﻿using System;
+﻿#if FIXMATH_SIN_LUT
+
+using System;
 using uint32_t = System.UInt32;
 using uint16_t = System.UInt16;
 
@@ -12848,3 +12850,5 @@ namespace libfixmath
 
     }
 }
+
+#endif
